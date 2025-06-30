@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Substitua pela sua chave da OpenAI
-openai_api_key = os.getenv("OPENAI_API_KEY") or "SUA_CHAVE_AQUI"
+openai_api_key = os.getenv("OPENAI_API_KEY") or "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"
 
 client = OpenAI(api_key=openai_api_key)
 
