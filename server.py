@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 
 # Substitua por sua chave real da OpenAI
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+openai.api_key = os.environ.get("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")
 
 # 🔊 Transcrição de áudio
 @app.route("/transcrever", methods=["POST"])
