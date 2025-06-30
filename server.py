@@ -10,22 +10,21 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/transcrever", methods=["POST"])
 def transcrever():
+    data = request.get_json()
+    texto = data.get("text", "")
+
+    if not texto:
+        return jsonify({"error": "Texto não fornecido"}), 400
+
     try:
-        data = request.get_json()
-        text = data.get("text", "")
-        if not text:
-            return jsonify({"error": "Texto ausente no corpo da requisição"}), 400
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Você é um assistente útil."},
-                {"role": "user", "content": text}
-            ]
+            messages=[{"role": "user", "content": texto}]
         )
-        answer = response["choices"][0]["message"]["content"]
-        return jsonify({"texto": answer})
+        resposta = response.choices[0].message.content.strip()
+        return jsonify({"resposta": resposta})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(debug=True)
