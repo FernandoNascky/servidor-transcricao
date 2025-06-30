@@ -6,51 +6,26 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Defina sua chave da OpenAI aqui ou use variável de ambiente
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Ou substitua por: "sk-..."
-
-@app.route("/")
-def home():
-    return "Servidor de transcrição online"
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/transcrever", methods=["POST"])
 def transcrever():
-    data = request.get_json()
-
-    if not data:
-        return jsonify({"erro": "Requisição vazia ou inválida"}), 400
-
-    texto = data.get("text", "")
-    imagem_base64 = data.get("image", None)
-
-    conteudo_usuario = []
-
-    if texto:
-        conteudo_usuario.append({
-            "type": "text",
-            "text": texto
-        })
-
-    if imagem_base64:
-        conteudo_usuario.append({
-            "type": "image_url",
-            "image_url": {"url": imagem_base64}
-        })
-
-    if not conteudo_usuario:
-        return jsonify({"erro": "Nenhum conteúdo enviado"}), 400
-
     try:
-        resposta = openai.ChatCompletion.create(
-            model="gpt-4o",
+        data = request.get_json()
+        text = data.get("text", "")
+        if not text:
+            return jsonify({"error": "Texto ausente no corpo da requisição"}), 400
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "user", "content": conteudo_usuario}
+                {"role": "system", "content": "Você é um assistente útil."},
+                {"role": "user", "content": text}
             ]
         )
-        retorno = resposta.choices[0].message.content
-        return jsonify({"resposta": retorno})
-    except Exception as erro:
-        return jsonify({"erro": str(erro)}), 500
+        answer = response["choices"][0]["message"]["content"]
+        return jsonify({"texto": answer})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000)
