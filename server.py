@@ -1,71 +1,56 @@
 from flask import Flask, request, jsonify
-import requests
+from flask_cors import CORS
 import openai
 import os
 
 app = Flask(__name__)
+CORS(app)
 
-# Substitua por sua chave real da OpenAI
-openai.api_key = os.environ.get("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")
+# Defina sua chave da OpenAI aqui ou use variável de ambiente
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Ou substitua por: "sk-..."
 
-# 🔊 Transcrição de áudio
+@app.route("/")
+def home():
+    return "Servidor de transcrição online"
+
 @app.route("/transcrever", methods=["POST"])
-def transcrever_audio():
-    audio_url = request.json.get("audio_url")
-    audio_data = requests.get(audio_url)
+def transcrever():
+    data = request.get_json()
 
-    with open("audio.ogg", "wb") as f:
-        f.write(audio_data.content)
+    if not data:
+        return jsonify({"erro": "Requisição vazia ou inválida"}), 400
 
-    with open("audio.ogg", "rb") as audio_file:
-        transcript = openai.Audio.transcribe("whisper-1", audio_file)
+    texto = data.get("text", "")
+    imagem_base64 = data.get("image", None)
 
-    texto = transcript["text"]
+    conteudo_usuario = []
 
-    return jsonify({"texto": texto})
+    if texto:
+        conteudo_usuario.append({
+            "type": "text",
+            "text": texto
+        })
 
+    if imagem_base64:
+        conteudo_usuario.append({
+            "type": "image_url",
+            "image_url": {"url": imagem_base64}
+        })
 
-# 💬 Entendimento de texto
-@app.route("/mensagem", methods=["POST"])
-def responder_texto():
-    texto = request.json.get("texto")
+    if not conteudo_usuario:
+        return jsonify({"erro": "Nenhum conteúdo enviado"}), 400
 
-    resposta = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Você é um atendente simpático de WhatsApp que ajuda a vender produtos."},
-            {"role": "user", "content": texto}
-        ]
-    )
+    try:
+        resposta = openai.ChatCompletion.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "user", "content": conteudo_usuario}
+            ]
+        )
+        retorno = resposta.choices[0].message.content
+        return jsonify({"resposta": retorno})
+    except Exception as erro:
+        return jsonify({"erro": str(erro)}), 500
 
-    conteudo = resposta["choices"][0]["message"]["content"]
-    return jsonify({"resposta": conteudo})
-
-
-# 🖼️ Entendimento de imagem
-@app.route("/imagem", methods=["POST"])
-def responder_imagem():
-    image_url = request.json.get("imagem_url")
-    prompt = request.json.get("pergunta", "Descreva a imagem.")
-
-    resposta = openai.ChatCompletion.create(
-        model="gpt-4-vision-preview",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": image_url}}
-                ]
-            }
-        ],
-        max_tokens=1000
-    )
-
-    conteudo = resposta["choices"][0]["message"]["content"]
-    return jsonify({"resposta": conteudo})
-
-
-# 🚀 Executar servidor
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
