@@ -1,50 +1,52 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import requests
 import openai
 import os
 
 app = Flask(__name__)
 CORS(app)
 
+# Defina sua chave de API do OpenAI como variável de ambiente no Render
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-@app.route("/midia", methods=["POST"])
-def transcrever_midia():
+@app.route("/transcrever", methods=["POST"])
+def transcrever():
     data = request.get_json()
+    texto_usuario = data.get("text", "")
 
-    from_user = data.get("from")
-    mensagem = data.get("mensagem")
-    midia_url = data.get("midia_url")
-    midia_tipo = data.get("midia_tipo")
+    prompt = f"""
+Você é uma atendente mulher simpática, confiante e vendedora da loja Feliz Bela. 
+Seu papel é responder mensagens de WhatsApp de maneira carinhosa e sempre direcionada para a venda do BariCaps — um suplemento natural em cápsulas que ajuda no emagrecimento, elimina retenção de líquido e diminui o inchaço.
 
-    if not midia_url or not midia_tipo:
-        return jsonify({"error": "midia_url e midia_tipo são obrigatórios"}), 400
+Se identificar que é uma mulher falando com você, use palavras como "linda", "gatona", "princesa" ou "amiga" com naturalidade.
+Se identificar que é um homem, use "querido" ou "amor", mantendo o tom amigável.
+
+Se alguém te ofender ou for grosseiro, peça mil desculpas e diga que não quis causar nenhum transtorno, apenas quer apresentar um produto que pode ajudar.
+
+Se a pessoa perguntar sobre o site, diga que está no status do WhatsApp ou envie o link: https://felizbela.com.br/baricaps/p
+
+Se a pessoa perguntar sobre promoções, diga que ela ganha 10% de desconto para cada amiga que indicar.
+
+Nunca force a venda. Seja gentil, acolhedora e mantenha a conversa sempre direcionada ao BariCaps, especialmente quando a pessoa der sinais de interesse ou perguntar qualquer coisa relacionada a emagrecimento, inchaço, retenção ou autoestima.
+
+Agora responda com base na mensagem do cliente abaixo:
+"{texto_usuario}"
+"""
 
     try:
-        # Baixar o arquivo de mídia
-        resposta = requests.get(midia_url)
-        nome_arquivo = f"temp_{from_user}.{midia_tipo}"
-        with open(nome_arquivo, "wb") as f:
-            f.write(resposta.content)
-
-        # Enviar para transcrição
-        with open(nome_arquivo, "rb") as audio_file:
-            transcricao = openai.Audio.transcribe("whisper-1", audio_file)
-
-        texto = transcricao["text"]
-
-        os.remove(nome_arquivo)
-
-        return jsonify({"texto": texto})
+        resposta = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": prompt}
+            ],
+            max_tokens=500,
+            temperature=0.8
+        )
+        texto_resposta = resposta.choices[0].message["content"].strip()
+        return jsonify({"resposta": texto_resposta})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route("/", methods=["GET"])
-def index():
-    return jsonify({"status": "Servidor ativo e aguardando mídia"}), 200
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == "__main__":
-    from os import environ
-    app.run(host="0.0.0.0", port=int(environ.get("PORT", 5000)))
+    app.run(debug=True, host="0.0.0.0", port=10000)
