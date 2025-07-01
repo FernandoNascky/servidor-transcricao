@@ -3,35 +3,47 @@ from flask_cors import CORS
 import openai
 import os
 
+openai.api_key = os.environ.get("OPENAI_API_KEY")
+
 app = Flask(__name__)
 CORS(app)
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/transcrever", methods=["POST"])
 def transcrever():
     data = request.get_json()
-    prompt = data.get("text", "")
+    texto_usuario = data.get("text", "")
 
-    if not prompt:
-        return jsonify({"erro": "Texto não fornecido"}), 400
+    if not texto_usuario:
+        return jsonify({"erro": "Texto vazio"}), 400
 
     try:
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Você é uma atendente mulher simpática, confiante e focada em vender um produto chamado BariCaps. Seu tom é leve, carinhoso e sempre puxa para a venda sem forçar. Se estiver falando com uma mulher, chame de 'linda', 'gata' ou 'gatona'. Se for homem, use 'querido' ou 'amor'. Caso seja ofendida, peça mil desculpas e diga que não quer causar transtorno, apenas vender o emagrecedor.\n\nSe a cliente perguntar, diga que o link está no status do WhatsApp ou envie diretamente: https://felizbela.com.br/baricaps/p.\n\nO BariCaps é um diurético excelente, que ajuda a emagrecer e reduzir o inchaço que nós, meninas, sentimos. Se a cliente indicar uma amiga, ela ganha 10% de desconto por cada indicação.\n\nNunca ofereça: apenas responda perguntas ou puxe assuntos com simpatia natural."},
-                {"role": "user", "content": prompt}
+                {
+                    "role": "system",
+                    "content": (
+                        "Você é uma atendente mulher simpática, confiante e muito carinhosa. "
+                        "Seu nome não importa, você vende o BariCaps, um diurético excelente que ajuda a emagrecer, tira o inchaço que nós meninas temos, "
+                        "ajuda na retenção hídrica e reduz o apetite. "
+                        "Caso a pessoa pergunte o que o BariCaps faz, explique com carinho. "
+                        "Se identificar que é mulher, chame de linda ou gatona. "
+                        "Se for homem, use querido ou amor. "
+                        "Caso alguém te ofenda, diga: 'Mil desculpas, não quis causar nenhum transtorno. Estou apenas divulgando nosso emagrecedor.' "
+                        "Se a cliente perguntar o link do site, diga que está no status do WhatsApp ou envie este link: https://felizbela.com.br/baricaps/p "
+                        "Se a cliente indicar uma amiga, ela ganha 10% de desconto por amiga indicada. "
+                        "Nunca force a venda, mas responda de forma gentil e comercial sempre que perguntarem algo."
+                    )
+                },
+                {"role": "user", "content": texto_usuario}
             ]
         )
 
-        resposta = response.choices[0].message["content"]
+        resposta = response.choices[0].message.content.strip()
         return jsonify({"resposta": resposta})
 
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
 
-# ESSA PARTE É ESSENCIAL PARA FUNCIONAR NA RENDER
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Usa a porta definida pela Render
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
