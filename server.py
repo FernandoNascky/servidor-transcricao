@@ -1,32 +1,37 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-import openai
+import requests
+import tempfile
 import os
+import openai
 
 app = Flask(__name__)
-CORS(app)
+openai.api_key = os.environ.get("OPENAI_API_KEY")  # ou use diretamente sua chave
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-@app.route("/transcrever", methods=["POST"])
-def transcrever():
+@app.route('/audio', methods=['POST'])
+def transcrever_audio():
     data = request.get_json()
-    texto = data.get("text", "")
 
-    if not texto:
-        return jsonify({"error": "Texto não fornecido"}), 400
+    audio_url = data.get("url")
+    if not audio_url:
+        return jsonify({"erro": "URL do áudio não fornecida"}), 400
 
     try:
-        resposta = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Você é um assistente útil."},
-                {"role": "user", "content": texto}
-            ]
-        )
-        return jsonify({"resposta": resposta.choices[0].message.content})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Baixar o áudio temporariamente
+        response = requests.get(audio_url)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_audio:
+            tmp_audio.write(response.content)
+            tmp_audio.flush()
+            tmp_audio_path = tmp_audio.name
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+        # Enviar para Whisper
+        with open(tmp_audio_path, "rb") as audio_file:
+            transcricao = openai.Audio.transcribe(
+                model="whisper-1",
+                file=audio_file
+            )
+
+        os.remove(tmp_audio_path)
+        return jsonify({"texto_transcrito": transcricao["text"]})
+
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
