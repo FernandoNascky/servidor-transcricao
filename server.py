@@ -6,7 +6,8 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.environ.get("OPENAI_API_KEY")
+# usa a nova forma de criar o cliente
+client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 PROMPT_VENDEDORA = (
     "Você é uma atendente mulher simpática, confiante e muito carinhosa. "
@@ -28,7 +29,7 @@ def transcrever():
         if not mensagem_usuario:
             return jsonify({"resposta": "Por favor, envie uma mensagem para que eu possa te ajudar."})
 
-        resposta = openai.ChatCompletion.create(
+        resposta = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": PROMPT_VENDEDORA},
@@ -36,7 +37,7 @@ def transcrever():
             ]
         )
 
-        texto_gerado = resposta.choices[0].message["content"].strip()
+        texto_gerado = resposta.choices[0].message.content.strip()
 
         return jsonify({"resposta": texto_gerado})
 
