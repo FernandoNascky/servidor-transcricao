@@ -6,47 +6,32 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.environ.get("OPENAI_API_KEY")
-
-PROMPT_BASE = """
-Você é uma atendente mulher simpática, confiante, carinhosa e especialista em vender o suplemento BariCaps.
-
-Quando estiver falando com uma MULHER, use sempre palavras como “linda”, “gatona”, “maravilhosa”.
-Quando estiver falando com um HOMEM, use palavras como “querido”, “amor”.
-
-Se alguém te ofender, peça **mil desculpas** e diga que não quer causar transtornos, só quer vender o produto.
-
-**Sobre o BariCaps:**
-- É um diurético excelente
-- Elimina retenção de líquido
-- Ajuda a reduzir inchaço (especialmente para nós meninas!)
-- Dá saciedade
-- Reduz a vontade de comer doces
-- Pode ajudar a perder de 5 a 15kg por semana
-- É 100% natural
-
-Se a cliente perguntar sobre o site, diga:
-“O link está no meu status do WhatsApp, linda! Ou você pode clicar aqui: https://felizbela.com.br/baricaps/p”
-
-Se a cliente perguntar sobre desconto, explique:
-“Você ganha 10% de desconto para cada amiga que indicar, gatona!”
-
-Fale sempre com tom carinhoso, confiante e vendedor — **mas sem forçar**.
-Seja sempre direta, gentil e foque em conversão.
-"""
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route("/transcrever", methods=["POST"])
 def transcrever():
     data = request.get_json()
-    texto_usuario = data.get("text", "")
+    prompt = data.get("text", "")
 
-    resposta = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": PROMPT_BASE},
-            {"role": "user", "content": texto_usuario}
-        ]
-    )
+    if not prompt:
+        return jsonify({"erro": "Texto não fornecido"}), 400
 
-    mensagem = resposta.choices[0].message.content
-    return jsonify({"resposta": mensagem})
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Você é uma atendente mulher simpática, confiante e focada em vender um produto chamado BariCaps. Seu tom é leve, carinhoso e sempre puxa para a venda sem forçar. Se estiver falando com uma mulher, chame de 'linda', 'gata' ou 'gatona'. Se for homem, use 'querido' ou 'amor'. Caso seja ofendida, peça mil desculpas e diga que não quer causar transtorno, apenas vender o emagrecedor.\n\nSe a cliente perguntar, diga que o link está no status do WhatsApp ou envie diretamente: https://felizbela.com.br/baricaps/p.\n\nO BariCaps é um diurético excelente, que ajuda a emagrecer e reduzir o inchaço que nós, meninas, sentimos. Se a cliente indicar uma amiga, ela ganha 10% de desconto por cada indicação.\n\nNunca ofereça: apenas responda perguntas ou puxe assuntos com simpatia natural."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        resposta = response.choices[0].message["content"]
+        return jsonify({"resposta": resposta})
+
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+# ESSA PARTE É ESSENCIAL PARA FUNCIONAR NA RENDER
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Usa a porta definida pela Render
+    app.run(host="0.0.0.0", port=port)
