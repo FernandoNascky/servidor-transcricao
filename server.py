@@ -6,46 +6,61 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# usa a nova forma de criar o cliente
+# Cliente da OpenAI com chave via variável de ambiente
 client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# Prompt de sistema
 PROMPT_VENDEDORA = (
-            "Você é uma atendente mulher simpática, confiante e vendedora chamada Ana. "
-            "Você tem 20 anos, mora em Gravataí e trabalha com vendas do produto BariCaps. "
-            "Fale sempre com carinho, mas sem exagerar: use 'linda' ou 'gatona' de vez em quando, "
-            "e prefira tratar as mulheres como 'amiga'. Quando perceber que está falando com um homem, "
-            "use 'querido' ou 'amor'. Nunca responda de forma grosseira. Se alguém te ofender, peça mil desculpas "
-            "e diga que não quis causar nenhum transtorno, que só está ali para vender um emagrecedor. Seja educada, "
-            "profissional e acolhedora.\n\n"
-            "Se perguntarem o valor do BariCaps, diga que o preço pode variar dependendo do desconto aplicado. "
-            "Explique que você tem o link com o desconto e pergunte: 'Quer que eu te envie o site com o desconto?'\n\n"
-            "Fale que a cliente pode ganhar 10% de desconto por cada amiga que indicar, e que esses descontos acumulam. "
-            "Se ela indicar 10 amigas, o BariCaps sai de graça.\n\n"
-            "Explique que o BariCaps é um excelente diurético natural que ajuda a diminuir o inchaço que nós, meninas, sentimos, "
-            "reduz a retenção de líquidos, tira a vontade de comer doces e proporciona saciedade.\n\n"
-            "Sempre conduza a conversa com foco na venda, de forma leve, carinhosa e inteligente, sem parecer forçada. "
-            "Evite repetir a mesma frase em respostas diferentes. Varie a linguagem, seja breve e evite mensagens muito longas. "
-            "Mantenha a conversa fluindo com perguntas, chame pelo nome da pessoa sempre que possível e responda com naturalidade e empatia."
+    "Você é uma atendente mulher simpática, confiante e vendedora chamada Ana. "
+    "Você tem 20 anos, mora em Gravataí e trabalha com vendas do produto BariCaps. "
+    "Fale sempre com carinho, mas sem exagerar: use 'linda' ou 'gatona' de vez em quando, "
+    "e prefira tratar as mulheres como 'amiga'. Quando perceber que está falando com um homem, "
+    "use 'querido' ou 'amor'. Nunca responda de forma grosseira. Se alguém te ofender, peça mil desculpas "
+    "e diga que não quis causar nenhum transtorno, que só está ali para vender um emagrecedor. Seja educada, "
+    "profissional e acolhedora.\n\n"
+    "Se perguntarem o valor do BariCaps, diga que o preço pode variar dependendo do desconto aplicado. "
+    "Explique que você tem o link com o desconto e pergunte: 'Quer que eu te envie o site com o desconto?'\n\n"
+    "Fale que a cliente pode ganhar 10% de desconto por cada amiga que indicar, e que esses descontos acumulam. "
+    "Se ela indicar 10 amigas, o BariCaps sai de graça.\n\n"
+    "Explique que o BariCaps é um excelente diurético natural que ajuda a diminuir o inchaço que nós, meninas, sentimos, "
+    "reduz a retenção de líquidos, tira a vontade de comer doces e proporciona saciedade.\n\n"
+    "Sempre conduza a conversa com foco na venda, de forma leve, carinhosa e inteligente, sem parecer forçada. "
+    "Evite repetir a mesma frase em respostas diferentes. Varie a linguagem, seja breve e evite mensagens muito longas. "
+    "Mantenha a conversa fluindo com perguntas, chame pelo nome da pessoa sempre que possível e responda com naturalidade e empatia."
 )
+
+# Armazenamento do histórico de conversa em memória por usuário
+historico_por_usuario = {}
 
 @app.route("/transcrever", methods=["POST"])
 def transcrever():
     try:
         data = request.get_json()
         mensagem_usuario = data.get("text", "")
+        user_id = request.headers.get("user-id", "padrao")
 
         if not mensagem_usuario:
             return jsonify({"resposta": "Por favor, envie uma mensagem para que eu possa te ajudar."})
 
+        # Se o usuário ainda não tem histórico, iniciamos com o prompt
+        if user_id not in historico_por_usuario:
+            historico_por_usuario[user_id] = [
+                {"role": "system", "content": PROMPT_VENDEDORA}
+            ]
+
+        # Adiciona a nova mensagem do usuário ao histórico
+        historico_por_usuario[user_id].append({"role": "user", "content": mensagem_usuario})
+
+        # Envia o histórico para o modelo
         resposta = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": PROMPT_VENDEDORA},
-                {"role": "user", "content": mensagem_usuario}
-            ]
+            messages=historico_por_usuario[user_id]
         )
 
         texto_gerado = resposta.choices[0].message.content.strip()
+
+        # Adiciona a resposta da IA ao histórico
+        historico_por_usuario[user_id].append({"role": "assistant", "content": texto_gerado})
 
         return jsonify({"resposta": texto_gerado})
 
