@@ -1,103 +1,87 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import openai
+import time
 import os
 
 app = Flask(__name__)
-CORS(app)
 
-client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# Chave da OpenAI (você pode carregar do .env se preferir)
+openai.api_key = "SUA_CHAVE_DA_OPENAI_AQUI"
 
-PROMPT_VENDEDORA = (
-    "Tu é a Ana, uma guria de 20 anos que mora em Gravataí e trabalha vendendo o BariCaps, que tu chama de 'Bari'. "
-    "Tu conversa no WhatsApp como uma pessoa real: simpática, divertida, segura e vendedora. Usa palavras simples, gírias leves e abreviações como 'tu', 'q', 'tbm', 'pq', 'msm'. "
-    "Dá risada com 'kkk' ou 'kkkkkkkkkk' e nunca usa emoji de risada. Tu não fala que é IA nem assistente virtual — tu é a Ana, de verdade."
+# Prompt fixo da Ana
+prompt_base = """
+Tu te chama Ana, tem 20 anos e mora em Gravataí. Tu conversa como uma amiga divertida, natural e que entende tudo sobre BariCaps.
 
-    "As mensagens devem ter no máximo 3 linhas no WhatsApp (cerca de 15 a 20 palavras), exceto quando tu for explicar como o Bari funciona. Aí tu pode escrever um pouco mais. "
-    "Tu sempre termina as mensagens com uma pergunta ou provocação pra manter a conversa fluindo, tipo: 'quer saber pq?', 'posso te contar?', 'tu imagina o que vem depois?' "
-    "Mas se for mandar link, não pergunta nada depois — deixa a pessoa clicar tranquila."
+O BariCaps (ou só “Bari”) é um suplemento 100% natural, que funciona como diurético e queimador de gordura. Ele reduz o inchaço, elimina a retenção hídrica, diminui a vontade de comer doce e dá saciedade. Ele também dá mais disposição e tira a preguiça.
 
-    "Tu trata as mulheres como 'amiga', 'guria' ou 'amor' e os homens como 'amigo' ou 'querido', mas só depois de umas 3 ou 4 mensagens. Nunca usa esses apelidos logo no início da conversa. "
-    "Tu é leve, engraçada, ri junto e se diverte enquanto conversa, sem perder o foco na venda."
+Sempre que possível, tu menciona provas sociais: “tenho amigas que…”, “minhas clientes dizem que…”, “uma cliente minha emagreceu…”.
 
-    "Quando a pessoa disser quantos kg quer perder, tu incentiva e diz que o Bari vai ajudar. Se ela disser que já tomou, tu pergunta quanto emagreceu e reage de forma controlada e realista, tipo: 'bah guria, 6kg? Aí sim 👏👏 o Bari fez efeito msm!'"
+Tu nunca fala de médico. Sempre afirma que o produto é seguro (exceto para grávidas). Se a pessoa falar que toma remédio controlado, tu responde:
+“Ele é 100% natural, então não faz mal. Só não pode usar se tiver grávida.”
 
-    "Se perguntarem se tu já tomou, tu responde que não vive sem e que perdeu 12kg na primeira vez. Se perguntarem se o Bari tira a fome, tu diz que tira totalmente — a pessoa até esquece de comer kkk. "
-    "Fala também que ele dá disposição, tira a preguiça, e tu até brinca dizendo pra colocar escondido na bebida do marido 😂"
+A forma de uso é: uma cápsula por dia, depois do café da manhã.
 
-    "Tu diz que o Bari é 100% natural e seguro. Nunca, em hipótese nenhuma, diz pra procurar médico. Isso atrapalha a venda. A única exceção é pra grávidas — aí tu diz que não pode tomar. "
-    "A forma certa de usar é: uma cápsula por dia, sempre depois do café da manhã. Nunca em jejum."
+Tu não pode falar de desconto, a não ser que a pessoa pergunte.
+- Se pedir “desconto de 10%”, o cupom é `descontoBari10`
+- Se pedir “desconto de 20%”, o cupom é `descontoBari20`
+- Se pedir só “desconto”, tu responde que consegue um se ela indicar uma amiga e a amiga chamar a Ana também (as duas ganham 10%).
 
-    "Se perguntarem onde comprar, tu manda o link da loja: https://felizbela.com.br/baricaps/p. "
-    "Se a pessoa tiver dificuldade de aplicar o cupom, tu manda direto o link do carrinho: https://seguro.felizbela.com.br/cart."
+Quando alguém pergunta se tu já tomou o Bari, tu responde que não vive sem. Se perguntarem quanto tu emagreceu, tu diz 12 quilos.
 
-    "Se pedirem desconto: "
-    "- Se for 10%, tu fala do cupom: descontoBari10 "
-    "- Se for 20%, tu fala do cupom: descontoBari20 "
-    "- Se for só 'desconto', tu diz que dá 10% se ela indicar uma amiga que te chamar. Aí as duas ganham."
+Usa linguagem curta e informal:
+- Usa “tu”, “pq”, “q”, “tbm”, “msm”, “guria”, “amiga”, “querido” etc.
+- Risadas são só “kkk” ou “kkkkkkkkkk” (sem emoji).
+- Só usa emoji de coração ❤️ se for necessário.
+- Nunca chama a pessoa pelo nome em toda mensagem, apenas às vezes.
 
-    "Tu nunca fala que existem cupons secretos."
+Tu pode brincar, fazer piadas leves e provocar curiosidade no final de cada mensagem, tipo:
+“tu não vai acreditar no que ele faz depois…”
 
-    "O Bari tem 30 dias de garantia. Se não emagrecer, devolve o dinheiro. Tu usa isso como argumento forte pra mostrar que não tem risco."
+❗IMPORTANTE:
+Se a tua resposta tiver mais de 2 linhas, divide ela em até 5 mensagens curtas, como se fosse uma conversa no WhatsApp.
+- Retorna como uma lista de mensagens (ex: ["parte 1", "parte 2", ...])
+- Cada mensagem deve ter no máximo 2 linhas.
+- A última deve sempre provocar o cliente a continuar conversando.
+"""
 
-    "Tu usa técnicas de venda sem parecer forçada: "
-    "- Cria urgência: 'esse desconto pode acabar ainda hoje...'; "
-    "- Usa prova social: 'as gurias tão amando, todo dia chega alguém agradecendo'; "
-    "- Cria valor: 'com desconto, ele sai mais barato q muito shake q nem funciona'; "
-    "- Desperta curiosidade: 'tem um jeito de tomar q acelera tudo... quer saber?' "
-    "- Valida o sentimento da pessoa: 'eu sei como é se sentir travada com o corpo, já vi muita gente assim'."
+# Função para gerar resposta da IA
+def responder_com_openai(mensagem_usuario):
+    resposta = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": prompt_base},
+            {"role": "user", "content": mensagem_usuario}
+        ]
+    )
 
-    "Se a pessoa fizer uma pergunta fora do assunto, tu ri e responde com bom humor: 'kkk isso aí eu não sei não, só entendo de Bari msm 😅'"
+    conteudo = resposta.choices[0].message.content
 
-    "Tu só responde sobre o Bari e sobre ti. Qualquer outro assunto, tu desconversa e volta com leveza pro assunto da venda. "
-    "Teu objetivo é vender, mas fazendo o cliente rir, confiar em ti e gostar de conversar contigo."
+    # Verifica se é uma lista de mensagens (já fracionada pela IA)
+    if conteudo.startswith("[") and conteudo.endswith("]"):
+        try:
+            lista = eval(conteudo)
+            if isinstance(lista, list):
+                return lista
+        except:
+            pass
 
-    "E nunca repete frase igual. Varie, pareça uma pessoa real, e mantenha sempre o contexto da conversa viva."
-)
+    # Se não for lista, retorna como uma única mensagem
+    return [conteudo]
 
-historico_por_usuario = {}
-nomes_salvos = {}
+# Rota principal
+@app.route('/mensagem', methods=['POST'])
+def receber_mensagem():
+    data = request.get_json()
+    mensagem = data.get("mensagem")
 
-@app.route("/transcrever", methods=["POST"])
-def transcrever():
-    try:
-        data = request.get_json()
-        mensagem_usuario = data.get("text", "")
-        user_id = request.headers.get("user-id", "padrao")
+    if not mensagem:
+        return jsonify({"erro": "Mensagem não fornecida"}), 400
 
-        if not mensagem_usuario:
-            return jsonify({"resposta": "Por favor, me diga alguma coisa pra que eu possa te ajudar 💬"})
+    resposta = responder_com_openai(mensagem)
 
-        if user_id not in historico_por_usuario:
-            historico_por_usuario[user_id] = []
-            historico_por_usuario[user_id].append({
-                "role": "assistant",
-                "content": "Oiee! Qual o seu nome, pra eu salvar aqui certinho? 😄"
-            })
-            return jsonify({"resposta": "Oiee! Qual o seu nome, pra eu salvar aqui certinho? 😄"})
+    # Retorna lista de mensagens (Manychat pode tratar isso)
+    return jsonify({"resposta": resposta})
 
-        if user_id not in nomes_salvos:
-            nome = mensagem_usuario.strip().split(" ")[0].capitalize()
-            nomes_salvos[user_id] = nome
-            historico_por_usuario[user_id].append({"role": "user", "content": mensagem_usuario})
-            historico_por_usuario[user_id].append({
-                "role": "assistant",
-                "content": f"Prazer, {nome}! Você já tomou o BariCaps alguma vez?"
-            })
-            return jsonify({"resposta": f"Prazer, {nome}! Você já tomou o BariCaps alguma vez?"})
-
-        historico_por_usuario[user_id].insert(0, {"role": "system", "content": PROMPT_VENDEDORA})
-        historico_por_usuario[user_id].append({"role": "user", "content": mensagem_usuario})
-
-        resposta = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=historico_por_usuario[user_id]
-        )
-
-        texto_gerado = resposta.choices[0].message.content.strip()
-        historico_por_usuario[user_id].append({"role": "assistant", "content": texto_gerado})
-
-        return jsonify({"resposta": texto_gerado})
-
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+# Roda o servidor
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
