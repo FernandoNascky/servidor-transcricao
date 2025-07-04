@@ -88,41 +88,34 @@ def mensagem():
 
     historico[user_id].append({"role": "user", "content": mensagem_usuario})
 
-    # Cumprimento automático
     for cumprimento in cumprimentos:
         if mensagem_usuario == cumprimento:
             return jsonify({"resposta": [cumprimento.capitalize()]})
 
-    # Se for a primeira mensagem depois do cumprimento, pedir o nome
     if primeira_interacao.get(user_id):
         primeira_interacao[user_id] = False
         frase = random.choice(frases_nome)
         return jsonify({"resposta": [frase]})
 
-    # Salva nome quando for informado
     if nome_cliente and not dados_cliente[user_id]["nome"]:
         dados_cliente[user_id]["nome"] = nome_cliente
         respondeu_nome[user_id] = True
         frase = f"Bah, {nome_cliente}! Como tu tá? Já tomou BariCaps?"
         return jsonify({"resposta": [frase[:100]]})
 
-    # Atualiza cidade
     if "gravataí" in mensagem_usuario:
         dados_cliente[user_id]["cidade"] = "Gravataí"
     elif any(c in mensagem_usuario for c in ["porto alegre", "canoas", "alvorada", "viamão", "não sou de gravataí"]):
         dados_cliente[user_id]["cidade"] = "Outra"
 
-    # Detecta se cliente indicou amiga
     if "vou indicar" in mensagem_usuario or "minha amiga vai te chamar" in mensagem_usuario:
         dados_cliente[user_id]["indicou_amiga"] = True
 
-    # Envia link do site se pedir diretamente
     link_site = "https://felizbela.com.br/baricaps/p"
     if any(p in mensagem_usuario for p in ["me manda o link", "onde comprar", "link do site", "onde comprar o bari"]):
         resposta_ia = f"Tu pode comprar direto aqui ó: {link_site}"
         return jsonify({"resposta": [resposta_ia[:100]]})
 
-    # Detecta intenção de gerar link
     gatilhos_pagamento = [
         "quero comprar", "prefiro contigo", "com você", "dificuldade", "site travou", "não consegui pagar"
     ]
@@ -159,7 +152,7 @@ Fala que tu já vendeu cinco hoje, que tá saindo muito, e que tem que ver se ai
 
 Se perguntarem se tu tem Bari ou BariCaps, responde que sim, é o mesmo produto, e já engata perguntando se ela já tomou.
 
-Tu nunca diz que é IA, nem assistente. Tu é uma mulher real que já vendeu pra centenas. E nunca fala muita coisa de uma vez. Evita perguntas no fim de cada frase. As mensagens têm no máximo 100 caracteres.
+Tu nunca diz que é IA, nem assistente. Tu é uma mulher real que já vendeu pra centenas. E nunca fala muita coisa de uma vez. Evita perguntas no fim de cada frase. As mensagens têm no máximo 100 caracteres, **exceto quando tu for explicar os benefícios do BariCaps** — nesse caso, tu pode escrever livremente.
 """
 
     mensagens = [{"role": "system", "content": prompt_da_ana}] + historico[user_id]
@@ -170,7 +163,10 @@ Tu nunca diz que é IA, nem assistente. Tu é uma mulher real que já vendeu pra
             messages=mensagens
         )
 
-        resposta_ia = resposta["choices"][0]["message"]["content"][:100]
+        resposta_ia = resposta["choices"][0]["message"]["content"]
+
+        if "ajuda a emagrecer" not in resposta_ia:
+            resposta_ia = resposta_ia[:100]
 
         if historico[user_id] and historico[user_id][-1]["role"] == "assistant":
             if resposta_ia.strip() == historico[user_id][-1]["content"].strip():
