@@ -11,14 +11,20 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 historico = {}
 
 def dividir_mensagem(texto, limite=80):
+    palavras = texto.split()
     partes = []
-    while len(texto) > limite:
-        corte = texto.rfind(" ", 0, limite)
-        if corte == -1:
-            corte = limite
-        partes.append(texto[:corte])
-        texto = texto[corte:].lstrip()
-    partes.append(texto)
+    atual = ""
+
+    for palavra in palavras:
+        if len(atual) + len(palavra) + 1 <= limite:
+            atual += (" " if atual else "") + palavra
+        else:
+            partes.append(atual)
+            atual = palavra
+
+    if atual:
+        partes.append(atual)
+
     return partes
 
 @app.route("/mensagem", methods=["POST"])
@@ -82,10 +88,6 @@ Se a pessoa perguntar algo fora do assunto, responde com leveza:
 Tu não diz que é IA, nem fala de robô, nem menciona que tá sendo treinada.
 
 Sempre responde como se fosse uma mulher real, que trabalha com vendas e já conversou com centenas de pessoas no WhatsApp.
-
----
-
-Se quiser, eu já insiro esse prompt no `server.py` pra ti. Deseja isso?
 """
 
     mensagens = [{"role": "system", "content": prompt_da_ana}] + historico[user_id]
@@ -97,9 +99,11 @@ Se quiser, eu já insiro esse prompt no `server.py` pra ti. Deseja isso?
         )
 
         resposta_ia = resposta["choices"][0]["message"]["content"]
-        historico[user_id].append({"role": "assistant", "content": resposta_ia})
-
         partes = dividir_mensagem(resposta_ia)
+
+        for parte in partes:
+            historico[user_id].append({"role": "assistant", "content": parte})
+
         return jsonify({"resposta": partes})
 
     except Exception as e:
