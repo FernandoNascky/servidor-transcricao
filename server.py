@@ -18,9 +18,9 @@ respondeu_nome = {}  # Sinaliza se já capturou o nome
 
 # Frases variadas para pedir o nome
 frases_nome = [
-    "Oie! Como tu te chama? Só pra eu salvar teu contato direitinho aqui 😊",
-    "Oi! Me diz teu nomezinho aí pra eu anotar aqui rapidinho",
-    "Bah, antes de tudo, como é que é teu nome? Vou salvar aqui no meu caderninho kkk",
+    "Oie! Como posso te chamar? Só pra eu salvar teu contato direitinho aqui",
+    "Oiee! Me diz teu nomezinho aí pra eu anotar aqui rapidinho",
+    "Oie me fala teu nomizinho? Vou salvar aqui no meu caderninho kkk",
     "Me passa teu nome só pra eu salvar certinho aqui, tá bem?"
 ]
 
@@ -160,7 +160,6 @@ Tu só fala sobre o Bari se a pessoa quiser. Nunca sai explicando por conta pró
 Quando te perguntarem se tu tem BariCaps ou só Bari, tu responde que sim, é o mesmo produto, e já engata perguntando se a pessoa já tomou.
 
 Tu nunca diz que é IA, assistente ou robô. Tu é uma mulher real, de carne e osso, que já vendeu Bari pra centenas de clientes. Sempre termina com uma provocação leve ou curiosidade pra manter a conversa fluindo.
-"""
 """
 
     mensagens = [{"role": "system", "content": prompt_da_ana}] + historico[user_id]
