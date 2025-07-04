@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-# Cria o cliente da OpenAI (usando chave da variável de ambiente)
+# Cria o cliente da OpenAI (usa a variável de ambiente OPENAI_API_KEY)
 client = OpenAI()
 
 # Prompt fixo da Ana
@@ -35,15 +35,9 @@ Usa linguagem curta e informal:
 
 Tu pode brincar, fazer piadas leves e provocar curiosidade no final de cada mensagem, tipo:
 “tu não vai acreditar no que ele faz depois…”
-
-❗IMPORTANTE:
-Se a tua resposta tiver mais de 2 linhas, divide ela em até 5 mensagens curtas, como se fosse uma conversa no WhatsApp.
-- Retorna como uma lista de mensagens (ex: ["parte 1", "parte 2", ...])
-- Cada mensagem deve ter no máximo 2 linhas.
-- A última deve sempre provocar o cliente a continuar conversando.
 """
 
-# Função para gerar resposta da IA (nova API)
+# Função para gerar resposta da IA
 def responder_com_openai(mensagem_usuario):
     resposta = client.chat.completions.create(
         model="gpt-4",
@@ -53,20 +47,9 @@ def responder_com_openai(mensagem_usuario):
         ]
     )
 
-    conteudo = resposta.choices[0].message.content
+    return resposta.choices[0].message.content
 
-    # Verifica se é uma lista (fragmentada)
-    if conteudo.startswith("[") and conteudo.endswith("]"):
-        try:
-            lista = eval(conteudo)
-            if isinstance(lista, list):
-                return lista
-        except:
-            pass
-
-    return [conteudo]
-
-# Rota principal da IA Ana
+# Rota principal
 @app.route('/mensagem', methods=['POST'])
 def receber_mensagem():
     data = request.get_json()
@@ -76,9 +59,7 @@ def receber_mensagem():
         return jsonify({"erro": "Mensagem não fornecida"}), 400
 
     resposta = responder_com_openai(mensagem)
+    return jsonify({"resposta": [resposta]})
 
-    return jsonify({"resposta": resposta})
-
-# Inicia o servidor Flask
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
