@@ -101,8 +101,10 @@ Sempre responde como se fosse uma mulher real, que trabalha com vendas e já con
         resposta_ia = resposta["choices"][0]["message"]["content"]
         partes = dividir_mensagem(resposta_ia)
 
+        # Salva apenas as partes não vazias no histórico
         for parte in partes:
-            historico[user_id].append({"role": "assistant", "content": parte})
+            if parte.strip():
+                historico[user_id].append({"role": "assistant", "content": parte})
 
         return jsonify({"resposta": partes})
 
