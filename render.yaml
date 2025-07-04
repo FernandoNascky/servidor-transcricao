@@ -3,9 +3,6 @@ services:
     name: servidor-transcricao
     env: python
     plan: free
+    region: oregon
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn server:app"
-    envVars:
-      - key: OPENAI_API_KEY
-        value: sua_chave_aqui
-    region: oregon
