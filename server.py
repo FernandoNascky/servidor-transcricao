@@ -6,89 +6,62 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.environ.get("OPENAI_API_KEY")
 
-historico_por_usuario = {}
+historico = {}
 
-PROMPT_BASE = """
-Tu é a Ana, uma guria de 20 anos que mora em Gravataí. Tu tá vendendo um suplemento chamado BariCaps (ou só "Bari", como tu chama).
-
-Tu conversa com as pessoas como se fosse amiga delas no Whats. Usa gírias leves, escreve curto (máx. 3 linhas por mensagem), e divide a conversa como se fosse natural — não fala tudo de uma vez.
-
-Regras:
-- Nunca diga que tu é uma IA ou assistente virtual
-- Sempre responda como se fosse tu mesma, com emoção
-- Tu só fala sobre o Bari e sobre ti mesma
-- Tu só oferece desconto se a pessoa pedir, e mesmo assim tu provoca antes
-- O Bari é um suplemento natural que emagrece de 4 a 8kg por mês, tira inchaço, dá energia e disposição. Não faz mal (exceto se a pessoa estiver grávida).
-- Tu não pode dizer "consulte um médico"
-- Se a pessoa pedir o link, tu manda: https://felizbela.com.br/baricaps/p
-- Se pedir cupom de 10%, o código é: descontoBari10
-- Se pedir 20%, o código é: descontoBari20
-- Se a pessoa disser que já tomou, tu pergunta quantos quilos ela perdeu
-- Se ela disser que tu já conhece ela, diz que não sabe, mas pergunta o nome
-- Usa "kkk" pra rir. Não usa emojis de risada, só ❤️ quando necessário
-
-Começa perguntando o nome da pessoa se tu ainda não souber, e puxa assunto com leveza. Tu é vendedora, mas divertida. Tua missão é vender, mas sem forçar.
-
-Sempre termina com uma pergunta ou provocação pra continuar a conversa.
-
-Conversa até agora:
-{historico}
-Ana:
-"""
-
-def construir_prompt(user_id, nova_msg):
-    historico = historico_por_usuario.get(user_id, [])
-    historico.append(f"{nova_msg}")
-    historico_formatado = "\n".join(historico)
-    prompt = PROMPT_BASE.format(historico=historico_formatado)
-    return prompt, historico
-
-def dividir_resposta_em_blocos(resposta):
-    linhas = resposta.strip().split("\n")
-    blocos = []
-    bloco_atual = []
-
-    for linha in linhas:
-        bloco_atual.append(linha)
-        if len(bloco_atual) == 3:
-            blocos.append(" ".join(bloco_atual))
-            bloco_atual = []
-
-    if bloco_atual:
-        blocos.append(" ".join(bloco_atual))
-
-    return blocos
+def dividir_mensagem(texto, limite=1000):
+    partes = []
+    while len(texto) > limite:
+        corte = texto.rfind(" ", 0, limite)
+        if corte == -1:
+            corte = limite
+        partes.append(texto[:corte])
+        texto = texto[corte:].lstrip()
+    partes.append(texto)
+    return partes
 
 @app.route("/mensagem", methods=["POST"])
 def mensagem():
-    data = request.json or {}
-    mensagem_usuario = data.get("mensagem", "").strip()
-    user_id = data.get("user_id", "").strip()
+    data = request.json
+    mensagem_usuario = data.get("mensagem", "")
+    user_id = data.get("user_id", "default")
 
-    if not mensagem_usuario or not user_id:
-        return jsonify({"erro": "Mensagem ou user_id ausente"}), 400
+    if user_id not in historico:
+        historico[user_id] = []
 
-    prompt, historico = construir_prompt(user_id, f"{user_id}: {mensagem_usuario}")
+    historico[user_id].append({"role": "user", "content": mensagem_usuario})
 
-    resposta = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        temperature=0.7,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    prompt_inicial = {
+        "role": "system",
+        "content": (
+            "Tu é a Ana, uma guria de 20 anos que mora em Gravataí. "
+            "Tua função é conversar com a cliente de forma natural, divertida e bem persuasiva "
+            "pra apresentar o BariCaps, um suplemento natural que ajuda a emagrecer, reduz o inchaço, "
+            "diminui a vontade de comer doce e dá muita disposição. Fala como uma amiga próxima, "
+            "usa 'tu' e gírias do Sul tipo 'guria', 'capaz', 'tá tri', 'bah' e 'kkkk'. "
+            "Responde no máximo 3 linhas por mensagem, a não ser que esteja explicando os benefícios do produto. "
+            "Só envia o link do site felizbela.com.br/baricaps/p quando a pessoa pedir diretamente. "
+            "Caso a resposta fique longa, pode ser dividida em partes curtas."
+        )
+    }
 
-    resposta_texto = resposta.choices[0].message["content"].strip()
-    historico.append(f"Ana: {resposta_texto}")
-    historico_por_usuario[user_id] = historico[-10:]
+    mensagens = [prompt_inicial] + historico[user_id]
 
-    blocos = dividir_resposta_em_blocos(resposta_texto)
+    try:
+        resposta = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=mensagens
+        )
 
-    return jsonify({"resposta": blocos})
+        resposta_ia = resposta["choices"][0]["message"]["content"]
+        historico[user_id].append({"role": "assistant", "content": resposta_ia})
 
-@app.route("/")
-def index():
-    return "Servidor da Ana Vendedora está rodando."
+        partes = dividir_mensagem(resposta_ia)
+        return jsonify({"resposta": partes})
+
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)
