@@ -18,9 +18,9 @@ respondeu_nome = {}  # Sinaliza se já capturou o nome
 
 # Frases variadas para pedir o nome
 frases_nome = [
-    "Oie! Como posso te chamar? Só pra eu salvar teu contato direitinho aqui",
-    "Oiee! Me diz teu nomezinho aí pra eu anotar aqui rapidinho",
-    "Oie me fala teu nomizinho? Vou salvar aqui no meu caderninho kkk",
+    "Oie! Como tu te chama? Só pra eu salvar teu contato direitinho aqui 😊",
+    "Oi! Me diz teu nomezinho aí pra eu anotar aqui rapidinho",
+    "Bah, antes de tudo, como é que é teu nome? Vou salvar aqui no meu caderninho kkk",
     "Me passa teu nome só pra eu salvar certinho aqui, tá bem?"
 ]
 
@@ -103,8 +103,8 @@ def mensagem():
     if nome_cliente and not dados_cliente[user_id]["nome"]:
         dados_cliente[user_id]["nome"] = nome_cliente
         respondeu_nome[user_id] = True
-        frase = f"Bah, {nome_cliente}! Como tu tá hoje? Já tomou o melhor seca-barriga do mundo ou vai ser tua primeira vez?"
-        return jsonify({"resposta": [frase]})
+        frase = f"Bah, {nome_cliente}! Como tu tá? Já tomou BariCaps?"
+        return jsonify({"resposta": [frase[:100]]})
 
     # Atualiza cidade
     if "gravataí" in mensagem_usuario:
@@ -115,6 +115,12 @@ def mensagem():
     # Detecta se cliente indicou amiga
     if "vou indicar" in mensagem_usuario or "minha amiga vai te chamar" in mensagem_usuario:
         dados_cliente[user_id]["indicou_amiga"] = True
+
+    # Envia link do site se pedir diretamente
+    link_site = "https://felizbela.com.br/baricaps/p"
+    if any(p in mensagem_usuario for p in ["me manda o link", "onde comprar", "link do site", "onde comprar o bari"]):
+        resposta_ia = f"Tu pode comprar direto aqui ó: {link_site}"
+        return jsonify({"resposta": [resposta_ia[:100]]})
 
     # Detecta intenção de gerar link
     gatilhos_pagamento = [
@@ -138,28 +144,22 @@ def mensagem():
         else:
             resposta_ia = "Tentei gerar teu link, mas deu erro aqui. Me chama de novo daqui a pouco, tá?"
 
-        return jsonify({"resposta": [resposta_ia]})
+        return jsonify({"resposta": [resposta_ia[:100]]})
 
-    # Prompt da Ana (mantido)
     prompt_da_ana = """
 Teu nome é Ana, tem 20 anos e mora em Gravataí. Tu trabalha vendendo o Bari, um suplemento natural que ajuda a emagrecer rápido, desincha, tira a fome de doce e dá mais disposição.
 
 Tu conversa como se estivesse no WhatsApp com uma amiga: leve, divertida, espontânea e sem parecer robô. Tu usa abreviações como “tu”, “q”, “pq”, “kkk”, “msm”, “guria”, “amigo” ou “querido”, e emojis como ❤️, 😊 ou 😍 — mas sem exagerar.
 
-Sempre que alguém chamar, tu responde com o mesmo cumprimento (ex: "bom dia", "boa noite") e logo em seguida pede o nome da pessoa, com variações naturais. Quando a pessoa disser o nome, tu grava ele mentalmente, responde chamando ela pelo nome e pergunta como ela tá.
+Tu sempre começa perguntando o nome da pessoa. Depois chama ela pelo nome, pergunta como ela tá, e pergunta se já tomou BariCaps. Não faz várias perguntas juntas. Aguarda a resposta de cada uma antes de seguir.
 
-Depois que a pessoa responder, tu pergunta com leveza se ela já tomou BariCaps antes. Se ela disser que sim, tu reage animada e pergunta quantos quilos perdeu. Se ela disser que não, tu pergunta (do teu jeito natural): "quer q eu te explique como funciona?"
+Se a pessoa disser que sim, tu responde com algo animado e pergunta quantos quilos perdeu. Se disser que não, pergunta se quer que tu explique. Se ela disser que sim, tu explica. Se disser que não, tu pergunta se ela quer comprar mesmo assim.
 
-Se a pessoa disser que **quer saber**, aí sim tu explica o que é o Bari: que ele é um suplemento natural que seca rápido, dá energia, reduz inchaço, tira a vontade de comer doce e é seguro. Só não pode pra grávida.
+Fala que tu já vendeu cinco hoje, que tá saindo muito, e que tem que ver se ainda tem no estoque. Mas só se a pessoa demonstrar interesse.
 
-Se a pessoa disser que **não quer saber**, tu respeita e pergunta naturalmente se ela quer comprar mesmo assim. Se ela disser que sim, tu responde com algo como:
-"Fechou então! Já vendi cinco só hoje, deixa eu ver se ainda tenho no estoque..."
+Se perguntarem se tu tem Bari ou BariCaps, responde que sim, é o mesmo produto, e já engata perguntando se ela já tomou.
 
-Tu só fala sobre o Bari se a pessoa quiser. Nunca sai explicando por conta própria.
-
-Quando te perguntarem se tu tem BariCaps ou só Bari, tu responde que sim, é o mesmo produto, e já engata perguntando se a pessoa já tomou.
-
-Tu nunca diz que é IA, assistente ou robô. Tu é uma mulher real, de carne e osso, que já vendeu Bari pra centenas de clientes. Sempre termina com uma provocação leve ou curiosidade pra manter a conversa fluindo.
+Tu nunca diz que é IA, nem assistente. Tu é uma mulher real que já vendeu pra centenas. E nunca fala muita coisa de uma vez. Evita perguntas no fim de cada frase. As mensagens têm no máximo 100 caracteres.
 """
 
     mensagens = [{"role": "system", "content": prompt_da_ana}] + historico[user_id]
@@ -170,7 +170,7 @@ Tu nunca diz que é IA, assistente ou robô. Tu é uma mulher real, de carne e o
             messages=mensagens
         )
 
-        resposta_ia = resposta["choices"][0]["message"]["content"]
+        resposta_ia = resposta["choices"][0]["message"]["content"][:100]
 
         if historico[user_id] and historico[user_id][-1]["role"] == "assistant":
             if resposta_ia.strip() == historico[user_id][-1]["content"].strip():
