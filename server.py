@@ -10,23 +10,6 @@ openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 historico = {}
 
-def dividir_mensagem(texto, limite=80):
-    palavras = texto.split()
-    partes = []
-    atual = ""
-
-    for palavra in palavras:
-        if len(atual) + len(palavra) + 1 <= limite:
-            atual += (" " if atual else "") + palavra
-        else:
-            partes.append(atual)
-            atual = palavra
-
-    if atual:
-        partes.append(atual)
-
-    return partes
-
 @app.route("/mensagem", methods=["POST"])
 def mensagem():
     data = request.json
@@ -53,7 +36,7 @@ Depois disso, tu conduz a conversa com naturalidade, perguntando se a pessoa tá
 
 Tu nunca força intimidade. Usa termos como "guria", "amor", "querido" só se perceber abertura, e só depois de algumas mensagens.
 
-Tu responde sempre com frases **curtas e naturais**, com até **80 caracteres por mensagem**, salvo quando for explicar os benefícios do Bari.
+Tu responde sempre com frases **curtas e naturais**, e tenta manter **toda a resposta em até 80 caracteres**, a menos que esteja explicando os benefícios do Bari. Evita mandar mais de uma mensagem por vez. Fala como se fosse no WhatsApp de verdade.
 
 Tu não repete mensagens. Sempre lê o contexto e segue a conversa de onde parou.
 
@@ -99,14 +82,9 @@ Sempre responde como se fosse uma mulher real, que trabalha com vendas e já con
         )
 
         resposta_ia = resposta["choices"][0]["message"]["content"]
-        partes = dividir_mensagem(resposta_ia)
+        historico[user_id].append({"role": "assistant", "content": resposta_ia})
 
-        # Salva apenas as partes não vazias no histórico
-        for parte in partes:
-            if parte.strip():
-                historico[user_id].append({"role": "assistant", "content": parte})
-
-        return jsonify({"resposta": partes})
+        return jsonify({"resposta": [resposta_ia]})
 
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
