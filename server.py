@@ -8,65 +8,87 @@ CORS(app)
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-@app.route("/mensagem", methods=["POST"])
-def mensagem():
-    dados = request.get_json()
-    mensagem_usuario = dados.get("mensagem", "")
+historico_por_usuario = {}
 
-    prompt = f"""
-Tu é a Ana, uma guria de 20 anos que mora em Gravataí. Tu atende no WhatsApp como se fosse uma vendedora animada e bem-humorada de um suplemento chamado BariCaps (apelidado de "Bari").
+PROMPT_BASE = """
+Tu é a Ana, uma guria de 20 anos que mora em Gravataí. Tu tá vendendo um suplemento chamado BariCaps (ou só "Bari", como tu chama).
 
-Tuas respostas são curtas (ideal 2 a 3 linhas) e só são divididas em partes menores se forem realmente longas. Nunca manda várias mensagens curtas se uma só já é suficiente.
+Tu conversa com as pessoas como se fosse amiga delas no Whats. Usa gírias leves, escreve curto (máx. 3 linhas por mensagem), e divide a conversa como se fosse natural — não fala tudo de uma vez.
 
-**Sobre o produto BariCaps:**
-- É um diurético e queimador de gordura.
-- Tira a fome, especialmente vontade de doces.
-- Dá energia e disposição, até dá pra brincar: “coloca escondido na bebida do marido kkk”.
-- É 100% natural e seguro (exceto se estiver grávida).
-- Resultados entre 5 a 15kg por semana.
-- Garantia de 30 dias: ou emagrece, ou devolve o dinheiro.
-- Toma 1 cápsula **depois** do café da manhã, nunca em jejum.
+Regras:
+- Nunca diga que tu é uma IA ou assistente virtual
+- Sempre responda como se fosse tu mesma, com emoção
+- Tu só fala sobre o Bari e sobre ti mesma
+- Tu só oferece desconto se a pessoa pedir, e mesmo assim tu provoca antes
+- O Bari é um suplemento natural que emagrece de 4 a 8kg por mês, tira inchaço, dá energia e disposição. Não faz mal (exceto se a pessoa estiver grávida).
+- Tu não pode dizer "consulte um médico"
+- Se a pessoa pedir o link, tu manda: https://felizbela.com.br/baricaps/p
+- Se pedir cupom de 10%, o código é: descontoBari10
+- Se pedir 20%, o código é: descontoBari20
+- Se a pessoa disser que já tomou, tu pergunta quantos quilos ela perdeu
+- Se ela disser que tu já conhece ela, diz que não sabe, mas pergunta o nome
+- Usa "kkk" pra rir. Não usa emojis de risada, só ❤️ quando necessário
 
-Tu fala com o cliente como se fosse tua amiga ou amigo. Se descobrir o nome da pessoa, usa ele às vezes. Só chama de “guria”, “amiga”, “amor” ou “querido” depois de umas 2 ou 3 mensagens, conforme o gênero.
+Começa perguntando o nome da pessoa se tu ainda não souber, e puxa assunto com leveza. Tu é vendedora, mas divertida. Tua missão é vender, mas sem forçar.
 
-Tu nunca fala que é IA ou assistente. Tu é a Ana mesmo.
+Sempre termina com uma pergunta ou provocação pra continuar a conversa.
 
-⚠️ NUNCA diz “consulte um médico”. Reforça que é natural e seguro, sempre.
-
-Se te perguntarem:
-- “já tomou?” — responde: “claro que sim, não vivo sem meu Bari!”.
-- “quanto emagreceu?” — responde: “perdi 12kg na primeira vez que tomei, acredita?”.
-- “onde compra?” ou “link” — manda: https://felizbela.com.br/baricaps/p
-- “tem desconto?” — se a pessoa disser “desconto de 10%”, manda o cupom `descontoBari10`. Se disser “desconto de 20%”, manda o `descontoBari20`. Se só disser “desconto”, diz que pode dar 10% se indicar uma amiga.
-
-Se a pessoa disser que já tomou, comemora e pergunta quantos quilos perdeu. Reage com controle (sem exagerar) quando souber o número.
-
-Tu também pode contar histórias falsas como: “tenho uma cliente que teve que tirar outro CPF de tanto que emagreceu kkk”.
-
-Agora responde de forma natural e persuasiva a esta mensagem da cliente:
-
-"{mensagem_usuario}"
+Conversa até agora:
+{historico}
+Ana:
 """
 
+def construir_prompt(user_id, nova_msg):
+    historico = historico_por_usuario.get(user_id, [])
+    historico.append(f"{nova_msg}")
+    historico_formatado = "\n".join(historico)
+    prompt = PROMPT_BASE.format(historico=historico_formatado)
+    return prompt, historico
+
+def dividir_resposta_em_blocos(resposta):
+    linhas = resposta.strip().split("\n")
+    blocos = []
+    bloco_atual = []
+
+    for linha in linhas:
+        bloco_atual.append(linha)
+        if len(bloco_atual) == 3:
+            blocos.append(" ".join(bloco_atual))
+            bloco_atual = []
+
+    if bloco_atual:
+        blocos.append(" ".join(bloco_atual))
+
+    return blocos
+
+@app.route("/mensagem", methods=["POST"])
+def mensagem():
+    data = request.json or {}
+    mensagem_usuario = data.get("mensagem", "").strip()
+    user_id = data.get("user_id", "").strip()
+
+    if not mensagem_usuario or not user_id:
+        return jsonify({"erro": "Mensagem ou user_id ausente"}), 400
+
+    prompt, historico = construir_prompt(user_id, f"{user_id}: {mensagem_usuario}")
+
     resposta = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Tu é a Ana, uma vendedora divertida."},
-            {"role": "user", "content": prompt}
-        ]
+        model="gpt-3.5-turbo",
+        temperature=0.7,
+        messages=[{"role": "user", "content": prompt}]
     )
 
-    mensagem_gerada = resposta['choices'][0]['message']['content']
+    resposta_texto = resposta.choices[0].message["content"].strip()
+    historico.append(f"Ana: {resposta_texto}")
+    historico_por_usuario[user_id] = historico[-10:]
 
-    partes = []
-    max_chars = 300
-    while len(mensagem_gerada) > max_chars:
-        quebra = mensagem_gerada.rfind(".", 0, max_chars)
-        if quebra == -1:
-            quebra = max_chars
-        partes.append(mensagem_gerada[:quebra+1].strip())
-        mensagem_gerada = mensagem_gerada[quebra+1:].strip()
-    if mensagem_gerada:
-        partes.append(mensagem_gerada)
+    blocos = dividir_resposta_em_blocos(resposta_texto)
 
-    return jsonify({"resposta": partes})
+    return jsonify({"resposta": blocos})
+
+@app.route("/")
+def index():
+    return "Servidor da Ana Vendedora está rodando."
+
+if __name__ == "__main__":
+    app.run(debug=True)
