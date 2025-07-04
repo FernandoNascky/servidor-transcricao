@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 
 # Chave da OpenAI (você pode carregar do .env se preferir)
-openai.api_key = "SUA_CHAVE_DA_OPENAI_AQUI"
+openai.api_key = "OPENAI_API_KEY"
 
 # Prompt fixo da Ana
 prompt_base = """
