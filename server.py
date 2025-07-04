@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import openai
 import os
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -9,6 +10,53 @@ CORS(app)
 openai.api_key = os.environ.get("OPENAI_API_KEY")
 
 historico = {}
+usuarios_ativos = {}
+
+# Função para enviar mensagem para o WhatsApp (simula envio)
+def enviar_mensagem_para_usuario(user_id, mensagem):
+    print(f"[Mensagem para {user_id}]: {mensagem}")
+
+# Função para gerar link de pagamento Mercado Pago
+def gerar_link_pagamento(nome_cliente, telefone, valor=97.00):
+    url = "https://api.mercadopago.com/checkout/preferences"
+
+    headers = {
+        "Authorization": "Bearer APP_USR-COLE_AQUI_SEU_TOKEN",
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "items": [
+            {
+                "title": "BariCaps - 1 frasco",
+                "description": f"Compra feita por {nome_cliente} ({telefone})",
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": float(valor)
+            }
+        ],
+        "payer": {
+            "name": nome_cliente,
+            "phone": {
+                "area_code": telefone[:2],
+                "number": telefone[2:]
+            }
+        },
+        "back_urls": {
+            "success": "https://felizbela.com.br/baricaps/p",
+            "failure": "https://felizbela.com.br/baricaps/p",
+            "pending": "https://felizbela.com.br/baricaps/p"
+        },
+        "auto_return": "approved"
+    }
+
+    response = requests.post(url, json=body, headers=headers)
+
+    if response.status_code == 201:
+        preference = response.json()
+        return preference["init_point"]  # Link de checkout com Pix/cartão
+    else:
+        return None
 
 @app.route("/mensagem", methods=["POST"])
 def mensagem():
@@ -104,6 +152,39 @@ Sempre responde como se fosse uma mulher real, que trabalha com vendas e já con
 
     except Exception as e:
         return jsonify({"erro": str(e)}), 500
+
+@app.route("/webhook-pagamento", methods=["POST"])
+def webhook_pagamento():
+    data = request.json
+
+    if data and data.get("type") == "payment":
+        pagamento_id = data.get("data", {}).get("id")
+        if not pagamento_id:
+            return jsonify({"erro": "ID de pagamento ausente"}), 400
+
+        token = "Bearer APP_USR-COLE_AQUI_SEU_TOKEN"
+        headers = {
+            "Authorization": token
+        }
+
+        resposta = requests.get(f"https://api.mercadopago.com/v1/payments/{pagamento_id}", headers=headers)
+
+        if resposta.status_code == 200:
+            pagamento = resposta.json()
+            status = pagamento.get("status")
+            telefone = pagamento.get("payer", {}).get("phone", {}).get("number")
+
+            if status == "approved" and telefone:
+                user_id = str(telefone)
+                usuarios_ativos.pop(user_id, None)
+                mensagem = "Acabei de ver que tu comprou! Já vou separar teu pedido aqui, muito obrigada ❤️"
+                enviar_mensagem_para_usuario(user_id, mensagem)
+
+                return jsonify({"ok": True}), 200
+
+        return jsonify({"erro": "Falha ao obter pagamento"}), 400
+
+    return jsonify({"status": "ignorado"}), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
