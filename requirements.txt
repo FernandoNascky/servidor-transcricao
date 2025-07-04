@@ -1,11 +1,5 @@
-services:
-  - type: web
-    name: servidor-transcricao
-    env: python
-    plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn server:app"
-    envVars:
-      - key: OPENAI_API_KEY
-        sync: false
-    region: oregon
+flask
+flask_cors
+openai>=1.0.0
+requests
+gunicorn
