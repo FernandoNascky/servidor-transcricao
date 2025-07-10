@@ -131,7 +131,7 @@ Respostas com no máximo 50 caracteres por mensagem, mas sempre terminando a fra
         },
         {
           headers: {
-            Authorization: `Bearer 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`,
+         Authorization: `Bearer ${process.env.OPENAI_KEY}`
             'Content-Type': 'application/json'
           }
         }
